@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+    integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+  <link rel="stylesheet" href="../static/index_style.css">
+  <script src="../static/styles.js"></script>
+  <title>开合跳计数器</title>
+</head>
+
+<body>
+  <div id="background"><canvas id="canvas"></canvas></div>
+
+  <!-- Alert if errors occur -->
+  <div id="alert-container"></div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {% for category, message in messages %}
+  <script>
+    alert("{{ message }}");
+  </script>
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+
+  <div class="container">
+
+    <div class="px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+      <h1 class="display-4 pb-3">开合跳计数</h1>
+      <div id='intro' class="offset-1">
+        <h4>开合跳(jumping jack)是常见的有氧热身运动，可以锻炼全身的核心肌群和腿部，燃烧脂肪。</h4>
+        <h4>在运动过程中，需要注意动作的规范，避免受伤，主要的动作要点如下：</h4>
+        <ul>
+          <li>起始站位时，身体站直，双脚并拢，肩膀放松，双手自然垂在身体两侧。</li>
+          <li>用力向上跳起，同时双脚向两侧张开。在跳跃向上的过程中手掌心慢慢由向下转为向前。</li>
+          <li>跳到最高处时双手前后交叉，此时双手和双腿保持笔直，膝盖也不要弯曲</li>
+          <li>回到地面，此时注意应脚尖先落地同时膝盖微屈，如此反复。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col-md-8 offset-2">
+      <div id="card-container" class="card-deck mb-2 text-center">
+        <div class='card col-md-6 mb-3'>
+          <div class="card-body">
+            <h4 class="card-title">Step 1</h4>
+            <p class="card-text">身体站直，两腿并拢，双手放松垂在身体两侧</p>
+          </div>
+          <img class="card-img-bottom" src="../static/img/jump_down.png" height=600px width=auto>
+        </div>
+        <div class='card col-md-6 mb-3'>
+          <div class="card-body">
+            <h4 class="card-title">Step 2</h4>
+            <p class="card-text">跳跃，两腿张开，双手从身体两侧举过头顶</p>
+          </div>
+          <img class="card-img-bottom" src="../static/img/jump_up.jpg" height=600px width=auto>
+        </div>
+      </div>
+    </div>
+
+    <div id="ways" class="col-md-10 offset-1 text-center">
+      <h2>方式一：上传本地视频</h2>
+      <div id='text-box' class="offset-2">
+        <h5>
+          <p>温馨提示：请确保视频拍到完整的全身人像，以免发生误差</p>
+        </h5>
+        <h5>点击下方按钮，可以查看标注计数后的视频</h5>
+      </div>
+      <div id="upload" class="text-center">
+        <form action="/upload_video" method="post" enctype="multipart/form-data">
+          <input type="file" name="video" accept="video/*">
+          <input type="submit" value="上传">
+        </form>
+      </div>
+
+
+      <div id="download-container" class="mt-4">
+        <a id="download-link" href="{{ url_for('download_output') }}" download="output.mp4">
+          <button class="webpage-button" id="download-button" type="button" {% if not result %}disabled{% endif %}>
+            下载视频
+          </button>
+        </a>
+      </div>
+    </div>
+
+
+
+    <div id="ways" class="col-md-10 offset-1 text-center">
+      <h2>方式二：开启摄像头实时计数</h2>
+      <div id='text-box' class="offset-2">
+        <h5>
+          <p>温馨提示：请确保摄像头拍到完整的全身人像，以免发生误差</p>
+        </h5>
+      </div>
+
+      <div>
+        <button class="webpage-button mt-4 mb-4" id="realtime-button" type="button">点击开始</button>
+      </div>
+
+      <div>
+        <img id="realtime-counter" src="" alt="计数器关闭">
+        <h2 class="mt-3">计数: <span id="count-number"></span></h2>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let isRealtimeRunning = false;
+
+    function toggleRealtime() {
+      const button = document.getElementById('realtime-button');
+      const counterImage = document.getElementById('realtime-counter');
+      const countNum = document.getElementById('count-number');
+
+      // Toggle the flag
+      isRealtimeRunning = !isRealtimeRunning;
+
+      if (isRealtimeRunning) {
+        // Start the video feed
+        button.innerText = "点击停止";  // Change button text
+        counterImage.src = "{{ url_for('video_stream') }}";
+        countNum.innerHTML = "";
+      } else {
+        // Stop the video feed
+        button.innerText = "点击开始";  // Change button text
+        counterImage.src = "";  // Set an empty source to stop the video
+        fetch("{{ url_for('video_res') }}")
+          .then(response => response.json())
+          .then(data => {
+            countNum.innerHTML = `${data.count}`;
+          })
+          .catch(error => console.error('Error fetching count:', error));
+
+      }
+    }
+
+    // Attach the toggleRealtime function to the button click event
+    document.getElementById('realtime-button').addEventListener('click', toggleRealtime);
+  </script>
+
+  {% if scroll_to_button %}
+  <script>
+    window.onload = function () {
+      // Scroll to the button container
+      let buttonContainer = document.getElementById("download-container");
+      if (buttonContainer) {
+        buttonContainer.scrollIntoView();
+      }
+    };
+  </script>
+  {% endif %}
+
+  <script>
+    backgroundParticles();
+
+    document.getElementById('download-link').addEventListener('click', function () {
+      // disable the button when download the video
+      let downloadButton = document.getElementById('download-button')
+      downloadButton.setAttribute('disabled', true)
+
+      // Trigger the download link
+      this.click();
+
+      // After a short delay, trigger the /remove_files endpoint
+      setTimeout(function () {
+        fetch('/remove_files')
+          .then(response => response.json())
+          .then(data => {
+            console.log(data.message);
+          })
+          .catch(error => {
+            console.error('Error:', error);
+          });
+      }, 1000);
+
+      // set url back to root
+      setTimeout(function () {
+        window.history.pushState({}, document.title, '/');
+      }, 1000);
+    });
+
+  </script>
+</body>
+
+</html>

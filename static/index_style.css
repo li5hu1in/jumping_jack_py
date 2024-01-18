@@ -1,0 +1,97 @@
+
+body {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    letter-spacing: 1px;
+    font-family: STZhongsong,SimHei,Microsoft YaHei;
+    font-size: 18px;
+    margin-bottom: 4rem;
+}
+
+#background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(70deg, rgb(168, 187, 221), rgb(64, 206, 241));
+    background-size: cover;
+    opacity: 0.45;
+    z-index: -1;
+  }
+
+
+#intro{
+    margin-top: 2rem;
+    text-align: left;
+}
+
+#intro h4{
+    font-size: 22px;
+}
+
+ul{
+    margin-left: 20px;
+    font-size: 20px;
+}
+
+#upload{
+    font-size:20px;
+    margin-top: 2rem;
+}
+
+
+#button{
+    display:flex;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+#ways{
+    margin-top: 3rem;
+    line-height: 140%;
+}
+
+#ways h2{
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+
+#text-box{
+    text-align: left;
+}
+
+#text-box p{
+    color:rgb(196, 43, 43)
+}
+
+
+.webpage-button {
+    background-color: #3d3def; /* Green */
+    border: none;
+    color: white;
+    padding: 10px 26px;
+    text-align: center;
+    letter-spacing: 2px;
+    font-size: 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-family: KaiTi;
+    text-decoration: none;
+    display: inline-block;
+    
+}
+
+.webpage-button:disabled{
+    background-color: gray;
+
+}
+
+
+#card-container{
+    margin-top: 1rem;
+}
+
+
+
+

@@ -1,1 +1,1 @@
-'/video_res'
+camera_counter

@@ -81,6 +81,7 @@ def remove_files():
     return redirect(url_for("index"))
 
 
+# 按帧显示摄像头画面
 @app.route("/video_stream")
 def video_stream():
     return Response(
@@ -88,9 +89,10 @@ def video_stream():
     )
 
 
+# 获取摄像头实时计数变量
 @app.route("/video_res")
 def video_res():
-    count_number = return_count()  # Get the counter value
+    count_number = return_count()
     return jsonify({"count": count_number})
 
 

@@ -14,7 +14,7 @@
 <body>
   <div id="background"><canvas id="canvas"></canvas></div>
 
-  <!-- Alert if errors occur -->
+  <!-- 上传视频报错显示错误原因 -->
   <div id="alert-container"></div>
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -111,6 +111,7 @@
   </div>
 
   <script>
+    // 摄像头是否正在工作
     let isRealtimeRunning = false;
 
     function toggleRealtime() {
@@ -157,12 +158,13 @@
     // 背景美化
     backgroundParticles();
 
+    // 下载后处理
     document.getElementById('download-link').addEventListener('click', function () {
-      // 下载后禁用按钮
+      // 禁用下载按钮
       let downloadButton = document.getElementById('download-button')
       downloadButton.setAttribute('disabled', true)
 
-      // 下载后删除文件
+      // 删除文件
       setTimeout(function () {
         fetch('/remove_files')
           .then(response => response.json())

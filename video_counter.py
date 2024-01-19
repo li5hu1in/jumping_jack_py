@@ -14,34 +14,25 @@ from main import (
 
 
 def process_video(video_filename):
-    # predicting from video
     # 指定视频路径和输出名称
     video_path = f"uploads/{video_filename}"
-    class_name = "up"
+    class_name = "up" # 分类动作类别为up，表明up在开合跳动作中更重要
     out_video_path = f"static/output.mp4"
 
     video_cap = cv2.VideoCapture(video_path)
 
-    # Get some video parameters to generate output video with classification.
+    # 初始化相关变量
     video_fps = video_cap.get(cv2.CAP_PROP_FPS)
     video_width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     video_height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    # Initialize tracker, classifier and counter.
-    # Do that before every video as all of them have state.
-
-    # Folder with pose class CSVs. That should be the same folder you using while
-    # building classifier to output CSVs.
+    # 初始化姿势追踪器、嵌入器、分类器、EMA平滑器、重复计数器、可视化工具
     pose_samples_folder = "jumping_jack_csvs_out"
 
-    # Initialize tracker.
     pose_tracker = mp_pose.Pose()
 
-    # Initialize embedder.
     pose_embedder = FullBodyPoseEmbedder()
 
-    # Initialize classifier.
-    # Check that you are using the same parameters as during bootstrapping.
     pose_classifier = PoseClassifier(
         pose_samples_folder=pose_samples_folder,
         pose_embedder=pose_embedder,
@@ -49,7 +40,6 @@ def process_video(video_filename):
         top_n_by_mean_distance=10,
     )
 
-    # Initialize EMA smoothing.
     pose_classification_filter = EMADictSmoothing(window_size=10, alpha=0.2)
 
     # 指定动作的两个阈值
@@ -57,10 +47,9 @@ def process_video(video_filename):
         class_name=class_name, enter_threshold=8, exit_threshold=2
     )
 
-    # Initialize renderer.
     pose_classification_visualizer = PoseClassificationVisualizer(class_name=class_name)
 
-    # Open output video.
+    # 打开输出视频文件
     out_video = cv2.VideoWriter(
         out_video_path,
         cv2.VideoWriter_fourcc(*"mp4v"),
@@ -72,22 +61,22 @@ def process_video(video_filename):
     output_frame = None
     repetitions_count = 0
     all_body_parts_visible = True
+    # 处理视频帧
     while True:
-        # Get next frame of the video.
+        # 循环读取视频帧直到结束
         success, input_frame = video_cap.read()
         if not success:
             break
 
-        # Run pose tracker.
+        # 运行mediapipe姿势追踪器
         input_frame = cv2.cvtColor(input_frame, cv2.COLOR_BGR2RGB)
         result = pose_tracker.process(image=input_frame)
         pose_landmarks = result.pose_landmarks
 
-        # Draw pose prediction.
         output_frame = input_frame.copy()
-
         frame_height, frame_width = output_frame.shape[0], output_frame.shape[1]
 
+        # 如果检测到关键点，在帧上绘制姿势预测
         if pose_landmarks is not None:
             mp_drawing.draw_landmarks(
                 image=output_frame,
@@ -98,7 +87,8 @@ def process_video(video_filename):
             # 检测全身入画
             num_visible_landmarks = sum(
                 1 for lmk in pose_landmarks.landmark if lmk.visibility > 0.5
-            )
+            ) # 可见关键点数量
+            # 处理未全身入画的情况
             if num_visible_landmarks != 33:
                 output_frame = Image.fromarray(output_frame)
                 warning_draw = ImageDraw.Draw(output_frame)
@@ -132,32 +122,30 @@ def process_video(video_filename):
                 3,
             ), "Unexpected landmarks shape: {}".format(pose_landmarks.shape)
 
-            # Classify the pose on the current frame.
+            # 对当前帧进行姿势分类
             pose_classification = pose_classifier(pose_landmarks)
 
-            # Smooth classification using EMA.
+            # EMA平滑处理
             pose_classification_filtered = pose_classification_filter(
                 pose_classification
             )
 
-            # Count repetitions.
+            # 如果全身入画，计数
             if all_body_parts_visible:
                 repetitions_count = repetition_counter(pose_classification_filtered)
         else:
+            # 未检测到关键点情况
             # No pose => no classification on current frame.
             pose_classification = None
 
-            # Still add empty classification to the filter to maintaining correct
-            # smoothing for future frames.
+            # Still add empty classification to the filter to maintaining correct smoothing for future frames.
             pose_classification_filtered = pose_classification_filter(dict())
             pose_classification_filtered = None
 
-            # Don't update the counter presuming that person is 'frozen'. Just
-            # take the latest repetitions count.
-            if all_body_parts_visible:
-                repetitions_count = repetition_counter.n_repeats
+            # 保持计数不变
+            repetitions_count = repetition_counter.n_repeats
 
-        # Draw classification plot and repetition counter.
+        # 绘制计数器
         output_frame = pose_classification_visualizer(
             frame=output_frame,
             pose_classification=pose_classification,
@@ -165,7 +153,7 @@ def process_video(video_filename):
             repetitions_count=repetitions_count,
         )
 
-        # Save the output frame.
+        # 保存输出帧至输出视频文件
         out_video.write(cv2.cvtColor(np.array(output_frame), cv2.COLOR_RGB2BGR))
 
         frame_idx += 1

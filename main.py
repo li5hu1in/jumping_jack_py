@@ -220,7 +220,7 @@ class PoseSample(object):
         self.embedding = embedding
 
 
-# 
+# 异常值
 class PoseSampleOutlier(object):
     def __init__(self, sample, detected_class, all_classes):
         self.sample = sample
@@ -228,6 +228,7 @@ class PoseSampleOutlier(object):
         self.all_classes = all_classes
 
 
+# K-means聚类
 class PoseClassifier(object):
     """Classifies pose landmarks."""
 
@@ -239,8 +240,8 @@ class PoseClassifier(object):
         file_separator=",",
         n_landmarks=33,
         n_dimensions=3,
-        top_n_by_max_distance=30,
-        top_n_by_mean_distance=10,
+        top_n_by_max_distance=30, # 按最大距离选择的样本数量
+        top_n_by_mean_distance=10, # 按平均距离选择的样本数量
         axes_weights=(1.0, 1.0, 0.2),
     ):
         self._pose_embedder = pose_embedder
@@ -250,6 +251,7 @@ class PoseClassifier(object):
         self._top_n_by_mean_distance = top_n_by_mean_distance
         self._axes_weights = axes_weights
 
+        # 加载姿势样本
         self._pose_samples = self._load_pose_samples(
             pose_samples_folder,
             file_extension,
@@ -282,7 +284,7 @@ class PoseClassifier(object):
           sample_00002,x1,y1,z1,x2,y2,z2,....
           ...
         """
-        # Each file in the folder represents one pose class.
+        # 每个文件代表一个姿势类别
         file_names = [
             name
             for name in os.listdir(pose_samples_folder)
@@ -317,7 +319,7 @@ class PoseClassifier(object):
 
     def find_pose_sample_outliers(self):
         """Classifies each sample against the entire database."""
-        # Find outliers in target poses
+        # 寻找异常值
         outliers = []
         for sample in self._pose_samples:
             # Find nearest poses for the target one.
@@ -329,8 +331,7 @@ class PoseClassifier(object):
                 if count == max(pose_classification.values())
             ]
 
-            # Sample is an outlier if nearest poses have different class or more than
-            # one pose class is detected as nearest.
+            # 最近的姿势具有不同类别/被检测为最近的姿势的类别不止一个 -> 异常值
             if sample.class_name not in class_names or len(class_names) != 1:
                 outliers.append(
                     PoseSampleOutlier(sample, class_names, pose_classification)
@@ -370,11 +371,7 @@ class PoseClassifier(object):
             pose_landmarks * np.array([-1, 1, 1])
         )
 
-        # Filter by max distance.
-        #
-        # That helps to remove outliers - poses that are almost the same as the
-        # given one, but has one joint bent into another direction and actually
-        # represent a different pose class.
+        # 按最大距离过滤
         max_dist_heap = []
         for sample_idx, sample in enumerate(self._pose_samples):
             max_dist = min(
@@ -389,9 +386,7 @@ class PoseClassifier(object):
         max_dist_heap = sorted(max_dist_heap, key=lambda x: x[0])
         max_dist_heap = max_dist_heap[: self._top_n_by_max_distance]
 
-        # Filter by mean distance.
-        #
-        # After removing outliers we can find the nearest pose by mean distance.
+        # 按平均距离过滤
         mean_dist_heap = []
         for _, sample_idx in max_dist_heap:
             sample = self._pose_samples[sample_idx]
@@ -419,13 +414,14 @@ class PoseClassifier(object):
         return result
 
 
-# smoothing classified results
+# 对姿势分类结果平滑处理
+# 计算给定时间窗口内每个姿势类别的指数移动平均值
 class EMADictSmoothing(object):
     """Smoothes pose classification."""
 
     def __init__(self, window_size=10, alpha=0.2):
-        self._window_size = window_size
-        self._alpha = alpha
+        self._window_size = window_size # 时间窗口大小
+        self._alpha = alpha # 指数移动平均的平滑因子
 
         self._data_in_window = []
 
@@ -478,7 +474,7 @@ class EMADictSmoothing(object):
         return smoothed_data
 
 
-# motion counter
+# 目标姿势类别重复次数
 class RepetitionCounter(object):
     """Counts number of repetitions of given target pose class."""
 
@@ -489,7 +485,7 @@ class RepetitionCounter(object):
         self._enter_threshold = enter_threshold
         self._exit_threshold = exit_threshold
 
-        # Either we are in given pose or not.
+        # 标记是否处于给定姿势中
         self._pose_entered = False
 
         # Number of times we exited the pose.
@@ -501,6 +497,7 @@ class RepetitionCounter(object):
 
     def __call__(self, pose_classification):
         """Counts number of repetitions happened until given frame.
+        直到给定帧的重复次数
 
         We use two thresholds. First you need to go above the higher one to enter
         the pose, and then you need to go below the lower one to exit it. Difference
@@ -518,19 +515,17 @@ class RepetitionCounter(object):
         Returns:
           Integer counter of repetitions.
         """
-        # Get pose confidence.
+        # 获取姿势置信度
         pose_confidence = 0.0
         if self._class_name in pose_classification:
             pose_confidence = pose_classification[self._class_name]
 
-        # On the very first frame or if we were out of the pose, just check if we
-        # entered it on this frame and update the state.
+        # 第一帧或不在姿势中的情况下，只需检查是否在此帧进入姿势并更新状态
         if not self._pose_entered:
             self._pose_entered = pose_confidence > self._enter_threshold
             return self._n_repeats
 
-        # If we were in the pose and are exiting it, then increase the counter and
-        # update the state.
+        # 如果在姿势中并正在退出，增加计数器，更新状态
         if pose_confidence < self._exit_threshold:
             self._n_repeats += 1
             self._pose_entered = False
@@ -538,7 +533,7 @@ class RepetitionCounter(object):
         return self._n_repeats
 
 
-# visualization
+# 在帧上绘制计数器
 class PoseClassificationVisualizer(object):
     """Keeps track of classifications for every frame and renders them."""
 
@@ -548,7 +543,6 @@ class PoseClassificationVisualizer(object):
         counter_location_x=0.75,
         counter_location_y=0.15,
         counter_font_path="fonts/Roboto-Regular.ttf",
-
         counter_font_color="cyan",
         counter_font_size=0.15,
     ):
@@ -576,7 +570,7 @@ class PoseClassificationVisualizer(object):
         self._pose_classification_history.append(pose_classification)
         self._pose_classification_filtered_history.append(pose_classification_filtered)
 
-        # Output frame with classification plot and counter.
+        # Output frame with counter.
         output_img = Image.fromarray(frame)
 
         output_width = output_img.size[0]
@@ -600,7 +594,8 @@ class PoseClassificationVisualizer(object):
         return output_img
 
 
-# extracting key points coordinates
+# 提取训练集关键点坐标
+# 处理图像，姿势分类
 class BootstrapHelper(object):
     """Helps to bootstrap images and filter pose samples for classification."""
 
@@ -609,7 +604,7 @@ class BootstrapHelper(object):
         self._images_out_folder = images_out_folder
         self._csvs_out_folder = csvs_out_folder
 
-        # Get list of pose classes and print image statistics.
+        # 获取姿势类别列表
         self._pose_class_names = sorted(
             [n for n in os.listdir(self._images_in_folder) if not n.startswith('.')]
         )
@@ -636,14 +631,14 @@ class BootstrapHelper(object):
           sample_00001,x1,y1,z1,x2,y2,z2,....
           sample_00002,x1,y1,z1,x2,y2,z2,....
         """
-        # Create output folder for CVSs.
+        # 创建输出文件夹
         if not os.path.exists(self._csvs_out_folder):
             os.makedirs(self._csvs_out_folder)
 
         for pose_class_name in self._pose_class_names:
             print("Bootstrapping ", pose_class_name, file=sys.stderr)
 
-            # Paths for the pose class.
+            # 姿势类别的路径
             images_in_folder = os.path.join(self._images_in_folder, pose_class_name)
             images_out_folder = os.path.join(self._images_out_folder, pose_class_name)
             csv_out_path = os.path.join(self._csvs_out_folder, pose_class_name + ".csv")
@@ -654,26 +649,26 @@ class BootstrapHelper(object):
                 csv_out_writer = csv.writer(
                     csv_out_file, delimiter=",", quoting=csv.QUOTE_MINIMAL, lineterminator="\n"
                 )
-                # Get list of images.
+                # 获取图像列表
                 image_names = sorted(
                     [n for n in os.listdir(images_in_folder) if not n.startswith(".")]
                 )
                 if per_pose_class_limit is not None:
                     image_names = image_names[:per_pose_class_limit]
 
-                # Bootstrap every image.
+                # 打印进度
                 for image_name in tqdm.tqdm(image_names):
-                    # Load image.
+                    # Load images.
                     input_frame = cv2.imread(os.path.join(images_in_folder, image_name))
                     input_frame = cv2.cvtColor(input_frame, cv2.COLOR_BGR2RGB)
 
-                    # Initialize fresh pose tracker and run it.
+                    # 初始化新追踪器
                     with mp_pose.Pose() as pose_tracker:
                         # upper_body_only
                         result = pose_tracker.process(image=input_frame)
                         pose_landmarks = result.pose_landmarks
 
-                    # Save image with pose prediction (if pose was detected).
+                    # 若检测到姿势，保存带有姿势预测的图像
                     output_frame = input_frame.copy()
                     if pose_landmarks is not None:
                         mp_drawing.draw_landmarks(
@@ -686,7 +681,7 @@ class BootstrapHelper(object):
                         os.path.join(images_out_folder, image_name), output_frame
                     )
 
-                    # Save landmarks if pose was detected.
+                    # 检测到姿势保存landmarks
                     if pose_landmarks is not None:
                         # Get landmarks.
                         frame_height, frame_width = (
@@ -726,7 +721,7 @@ class BootstrapHelper(object):
         if pose_landmarks is None:
             return np.asarray(img)
 
-        # Scale radius according to the image width.
+        # 根据图片宽度缩放半径
         r *= frame_width * 0.01
 
         draw = ImageDraw.Draw(img)
@@ -745,6 +740,7 @@ class BootstrapHelper(object):
         """Makes sure that image folders and CSVs have the same sample.
 
         Leaves only intersection of samples in both image folders and CSVs.
+        仅保留图像文件夹和csv中的样本交际
         """
         for pose_class_name in self._pose_class_names:
             # Paths for the pose class.
@@ -761,7 +757,7 @@ class BootstrapHelper(object):
             # Image names left in CSV.
             image_names_in_csv = []
 
-            # Re-write the CSV removing lines without corresponding images.
+            # 删除没有对应图像的行，重新写入csv
             with open(csv_out_path, "w") as csv_out_file:
                 csv_out_writer = csv.writer(
                     csv_out_file, delimiter=",", quoting=csv.QUOTE_MINIMAL, lineterminator="\n"
@@ -775,7 +771,7 @@ class BootstrapHelper(object):
                     elif print_removed_items:
                         print("Removed image from CSV: ", image_path)
 
-            # Remove images without corresponding line in CSV.
+            # 删除没有对应csv行的图像
             for image_name in os.listdir(images_out_folder):
                 if image_name not in image_names_in_csv:
                     image_path = os.path.join(images_out_folder, image_name)
@@ -785,9 +781,11 @@ class BootstrapHelper(object):
 
     def analyze_outliers(self, outliers):
         """Classifies each sample against all other to find outliers.
+        每个样本再次分类以查找异常值
 
         If sample is classified differrrently than the original class - it should
         either be deleted or more similar samples should be added.
+        如果样本的分类与原始类别不同，删除或添加更相似的样本
         """
         for outlier in outliers:
             image_path = os.path.join(
@@ -844,7 +842,7 @@ if not os.path.exists("jumping_jack_csvs_out"):
     bootstrap_images_out_folder = "jumping_jack_images_out"
     bootstrap_csvs_out_folder = "jumping_jack_csvs_out"
 
-    # 初始化helper
+    # 初始化helper用于预处理
     bootstrap_helper = BootstrapHelper(
         images_in_folder=bootstrap_images_in_folder,
         images_out_folder=bootstrap_images_out_folder,
@@ -860,8 +858,7 @@ if not os.path.exists("jumping_jack_csvs_out"):
     # 检查每个动作有多少张图像提取了特征
     bootstrap_helper.print_images_out_statistics()
 
-    # After initial bootstrapping images without detected poses were still saved in
-    # the folder (but not in the CSVs) for debug purpose. Let's remove them.
+    # 删除没有检测到姿势的图像
     bootstrap_helper.align_images_and_csvs(print_removed_items=False)
     bootstrap_helper.print_images_out_statistics()
 
@@ -874,7 +871,7 @@ if not os.path.exists("jumping_jack_csvs_out"):
     # Transforms pose landmarks into embedding.
     pose_embedder = FullBodyPoseEmbedder()
 
-    # Classifies give pose against database of poses.
+    # 通过分类器查找异常值
     pose_classifier = PoseClassifier(
         pose_samples_folder=bootstrap_csvs_out_folder,
         pose_embedder=pose_embedder,

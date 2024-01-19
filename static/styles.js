@@ -1,3 +1,5 @@
+// Reference: https://blog.csdn.net/BrianV530/article/details/135068495?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-1-135068495-blog-124718043.235^v40^pc_relevant_3m_sort_dl_base3&spm=1001.2101.3001.4242.2&utm_relevant_index=4
+
 function backgroundParticles() {
     // 设置div背景的宽高
     background = document.getElementById("background")
@@ -85,7 +87,7 @@ function backgroundParticles() {
     }
 
     function draw() {
-        // 首先清空画布
+        // 清空画布
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         // 如果粒子数量小于规定数量，就生成新的粒子
         if (particlesArray.length < count) {

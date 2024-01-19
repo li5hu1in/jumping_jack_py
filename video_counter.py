@@ -4,7 +4,14 @@ import cv2
 from mediapipe.python.solutions import drawing_utils as mp_drawing
 from mediapipe.python.solutions import pose as mp_pose
 
-from main import RepetitionCounter, PoseClassificationVisualizer, FullBodyPoseEmbedder, PoseClassifier, EMADictSmoothing
+from main import (
+    RepetitionCounter,
+    PoseClassificationVisualizer,
+    FullBodyPoseEmbedder,
+    PoseClassifier,
+    EMADictSmoothing,
+)
+
 
 def process_video(video_filename):
     # predicting from video
@@ -16,7 +23,6 @@ def process_video(video_filename):
     video_cap = cv2.VideoCapture(video_path)
 
     # Get some video parameters to generate output video with classification.
-    video_n_frames = video_cap.get(cv2.CAP_PROP_FRAME_COUNT)
     video_fps = video_cap.get(cv2.CAP_PROP_FPS)
     video_width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     video_height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -43,13 +49,8 @@ def process_video(video_filename):
         top_n_by_mean_distance=10,
     )
 
-    # # Uncomment to validate target poses used by classifier and find outliers.
-    # outliers = pose_classifier.find_pose_sample_outliers()
-    # print('Number of pose sample outliers (consider removing them): ', len(outliers))
-
     # Initialize EMA smoothing.
     pose_classification_filter = EMADictSmoothing(window_size=10, alpha=0.2)
-
 
     # 指定动作的两个阈值
     repetition_counter = RepetitionCounter(
@@ -57,12 +58,7 @@ def process_video(video_filename):
     )
 
     # Initialize renderer.
-    pose_classification_visualizer = PoseClassificationVisualizer(
-        class_name=class_name,
-        # plot_x_max=video_n_frames,
-        # # Graphic looks nicer if it's the same as `top_n_by_mean_distance`.
-        # plot_y_max=10,
-    )
+    pose_classification_visualizer = PoseClassificationVisualizer(class_name=class_name)
 
     # Open output video.
     out_video = cv2.VideoWriter(
@@ -89,6 +85,9 @@ def process_video(video_filename):
 
         # Draw pose prediction.
         output_frame = input_frame.copy()
+
+        frame_height, frame_width = output_frame.shape[0], output_frame.shape[1]
+
         if pose_landmarks is not None:
             mp_drawing.draw_landmarks(
                 image=output_frame,
@@ -96,14 +95,23 @@ def process_video(video_filename):
                 connections=mp_pose.POSE_CONNECTIONS,
             )
 
-            # check if all body parts available
-            num_visible_landmarks = sum(1 for lmk in pose_landmarks.landmark if lmk.visibility > 0.5)
+            # 检测全身入画
+            num_visible_landmarks = sum(
+                1 for lmk in pose_landmarks.landmark if lmk.visibility > 0.5
+            )
             if num_visible_landmarks != 33:
                 output_frame = Image.fromarray(output_frame)
                 warning_draw = ImageDraw.Draw(output_frame)
+                relative_position = (0.1 * frame_width, 0.1 * frame_height)
+                relative_font_size = int(0.1 * min(frame_width, frame_height))
                 warning_text = "请全身入画"
-                warning_font = ImageFont.truetype("fonts/msyh.ttc", 100)
-                warning_draw.text((50, 50), warning_text, font=warning_font, fill=(0, 235, 255))
+                warning_font = ImageFont.truetype("fonts/msyh.ttc", relative_font_size)
+                warning_draw.text(
+                    relative_position,
+                    warning_text,
+                    font=warning_font,
+                    fill=(0, 235, 255),
+                )
                 output_frame = np.array(output_frame)
 
                 all_body_parts_visible = False
@@ -112,7 +120,6 @@ def process_video(video_filename):
 
         if pose_landmarks is not None:
             # Get landmarks.
-            frame_height, frame_width = output_frame.shape[0], output_frame.shape[1]
             pose_landmarks = np.array(
                 [
                     [lmk.x * frame_width, lmk.y * frame_height, lmk.z * frame_width]

@@ -740,7 +740,7 @@ class BootstrapHelper(object):
         """Makes sure that image folders and CSVs have the same sample.
 
         Leaves only intersection of samples in both image folders and CSVs.
-        仅保留图像文件夹和csv中的样本交际
+        仅保留图像文件夹和csv中的样本交集
         """
         for pose_class_name in self._pose_class_names:
             # Paths for the pose class.
